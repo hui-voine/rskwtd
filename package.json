@@ -1,0 +1,25 @@
+{
+  "name": "russian-ship-know-what-to-do",
+  "version": "2.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "attack": "node --experimental-json-modules ./scripts/run-attack.js",
+    "stop": "node --experimental-json-modules ./scripts/stop.js",
+    "create": "node --experimental-json-modules ./scripts/new-ddosify.js",
+    "update": "node --experimental-json-modules ./scripts/install-deps.js",
+    "cleanup": "node --experimental-json-modules ./scripts/cleanup.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "node-fetch": "^3.2.1",
+    "node-ssh": "^12.0.3",
+    "yargs": "^17.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.21",
+    "@types/ssh2": "^0.5.51"
+  }
+}
