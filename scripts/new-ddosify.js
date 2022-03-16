@@ -1,18 +1,17 @@
 import "dotenv/config";
+
 import fetch from "node-fetch";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import CONSTANTS from "../constants.js";
 
+import CONSTANTS from "../constants.js";
+import COMMANDS from "../deps.json";
 import {
   applyCommandsToServer,
+  cleanUpSingleDropletById,
   getDropletNetworkV4IpAdress,
-  printTerminalSTD,
+  sleep,
 } from "../helpers.js";
-import { sleep } from "../helpers.js";
-import COMMANDS from "../deps.json";
-
-const WAIT_SEC = 180;
 
 const { DO_API_KEY, DO_API_ROOT, DO_API_SSH_KEY_ID } = CONSTANTS;
 
@@ -20,9 +19,34 @@ const getArgFromCLI = (param) => {
   const argv = yargs(hideBin(process.argv)).argv;
   return argv[param];
 };
-
 const count = Number(getArgFromCLI("c")) || 1;
+
 console.log(`Creating servers: ${count}`);
+
+const requestUntilCreated = async (id) => {
+  let on = true;
+  let resGlobal;
+  while (on) {
+    const query = await fetch(`${DO_API_ROOT}/droplets/${id}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${DO_API_KEY}`,
+      },
+    });
+    const res = await query.json();
+    const ip = getDropletNetworkV4IpAdress(res);
+
+    if (ip) {
+      on = false;
+      resGlobal = res;
+    } else {
+      await sleep(7);
+    }
+  }
+
+  return resGlobal;
+};
 
 const run = async (index = 0) => {
   const region = CONSTANTS.REGIONS[index % CONSTANTS.REGIONS.length];
@@ -54,47 +78,36 @@ const run = async (index = 0) => {
 
   const dropletID = data.droplet.id;
 
-  console.log(`New droplet is here. ID: ${dropletID}`);
-  console.log(
-    `Hold it! Waiting ${WAIT_SEC} sec for server to boot... Chill out...`
-  );
+  console.log(`✅ Droplet created, ID = ${dropletID}`);
 
-  await sleep(1000 * WAIT_SEC);
+  const dropletDetails = await requestUntilCreated(dropletID);
 
-  const response2 = await fetch(`${DO_API_ROOT}/droplets/${dropletID}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${DO_API_KEY}`,
-    },
-  });
-
-  const dropletDetails = await response2.json();
-
-  console.log("Droblet created...");
-  console.log("Installing ddosify...");
+  console.log("ℹ️ Waiting for droplet to be initialized on DigitalOcean...");
 
   const ip = getDropletNetworkV4IpAdress(dropletDetails);
-
+  await sleep(5);
   const connection = {
     host: ip,
     username: "root",
     privateKey: `${process.env.HOME}/.ssh/id_rsa`,
+    // TODO
+    readyTimeout: 1000 * 90 * 1000,
   };
 
-  const query = applyCommandsToServer({ connection })(COMMANDS);
-
-  query.catch((error) => {
-    console.log("Error");
-    console.error(error);
-    process.exit(1);
-  });
-
-  query.finally(() => {
-    process.exit(0);
-  });
+  try {
+    console.log("ℹ️ Installing dependencies...");
+    return await applyCommandsToServer({ connection })(COMMANDS);
+  } catch (e) {
+    console.log("❌ Failed to init a droplet. Removing.");
+    console.log("Error: " + e.message);
+    return await cleanUpSingleDropletById(dropletID);
+  }
 };
 
-[...new Array(count)].forEach((_value, index) => {
-  run(index);
+const p = [...new Array(count)].map((_value, index) => {
+  return run(index);
+});
+
+Promise.all(p).finally(() => {
+  process.exit(0);
 });

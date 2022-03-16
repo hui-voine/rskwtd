@@ -6,9 +6,12 @@ import fetch from "node-fetch";
 import CONSTANTS from "./constants.js";
 
 export const getDropletNetworkV4IpAdress = (data) => {
-  return data.droplet.networks.v4.find((n) => {
+  const networks = data?.droplet?.networks?.v4 || [];
+  const v4 = networks.find((n) => {
     return n.type === "public";
-  }).ip_address;
+  });
+
+  return v4 && v4?.ip_address ? v4.ip_address : null;
 };
 
 export const sleep = (ms) => {
@@ -33,6 +36,7 @@ export const getServersDigitalOcean = (doResponse) => {
           host: network.ip_address,
           username: "root",
           privateKey: `${process.env.HOME}/.ssh/id_rsa`,
+          readyTimeout: 1000 * 45,
         },
       };
     })
@@ -56,7 +60,7 @@ export const getServers = async () => {
 export const applyCommandsToServer = (server) => (cmds) => {
   const ssh = new NodeSSH();
   const query = cmds.reduce((q, command) => {
-    const msg = `\n[${server.connection.ip}]\n[${cmds.indexOf(command) + 1}/${
+    const msg = `\n[${server.connection.host}]\n[${cmds.indexOf(command) + 1}/${
       cmds.length
     }] ${command}`;
 
@@ -69,20 +73,25 @@ export const applyCommandsToServer = (server) => (cmds) => {
   return query;
 };
 
+export const cleanUpSingleDropletById = (id) => {
+  return fetch(`${CONSTANTS.DO_API_ROOT}/droplets/${id}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${CONSTANTS.DO_API_KEY}`,
+    },
+  });
+};
+
 export const cleanUpAllServers = async () => {
   const doResponse = await getDigitalOceanServers();
-
+  if (doResponse.message) {
+    throw new Error(doResponse.message);
+  }
   doResponse.droplets.map((droplet) => {
     const id = droplet.id;
     console.log("Gonna die... " + droplet.id);
-
-    fetch(`${CONSTANTS.DO_API_ROOT}/droplets/${id}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${CONSTANTS.DO_API_KEY}`,
-      },
-    });
+    cleanUpSingleDropletById(id);
   });
 };
 
